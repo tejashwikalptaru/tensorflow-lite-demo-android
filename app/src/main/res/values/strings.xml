@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Tensorflow Sample</string>
+    <string name="detected_obj_will_go_here">Detected Obj will go here...</string>
+    <string name="capture_and_detect">Capture and Detect</string>
+</resources>
