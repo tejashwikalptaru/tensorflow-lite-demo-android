@@ -4,4 +4,5 @@
     <string name="choose_classifier">Choose classifier</string>
     <string name="details">Detected details will go here</string>
     <string name="select_classifier">Select Classifier:</string>
+    <string name="image_preview">Image Preview</string>
 </resources>
