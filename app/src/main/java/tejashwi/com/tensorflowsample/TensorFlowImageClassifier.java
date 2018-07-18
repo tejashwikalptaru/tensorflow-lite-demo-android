@@ -37,29 +37,39 @@ public class TensorFlowImageClassifier implements Classifier {
     private int inputSize;
     private List<String> labelList;
 
+    private boolean isInception = false;
+    private static final int IMAGE_MEAN = 128;
+    private static final float IMAGE_STD = 128.0f;
+
     private TensorFlowImageClassifier() {
 
     }
 
-    static Classifier create(AssetManager assetManager,
-                             String modelPath,
-                             String labelPath,
-                             int inputSize) throws IOException {
-
+    static Classifier create(AssetManager assetManager, String modelPath, String labelPath, boolean isInception) throws IOException {
         TensorFlowImageClassifier classifier = new TensorFlowImageClassifier();
         classifier.interpreter = new Interpreter(classifier.loadModelFile(assetManager, modelPath));
         classifier.labelList = classifier.loadLabelList(assetManager, labelPath);
-        classifier.inputSize = inputSize;
-
+        classifier.isInception = isInception;
+        if(isInception){
+            classifier.inputSize = 299;
+        } else {
+            classifier.inputSize = 224;
+        }
         return classifier;
     }
 
     @Override
     public List<Recognition> recognizeImage(Bitmap bitmap) {
         ByteBuffer byteBuffer = convertBitmapToByteBuffer(bitmap);
-        byte[][] result = new byte[1][labelList.size()];
-        interpreter.run(byteBuffer, result);
-        return getSortedResult(result);
+        if(isInception){
+            float[][] result = new float[1][labelList.size()];
+            interpreter.run(byteBuffer, result);
+            return getSortedResult(result);
+        } else {
+            byte[][] result = new byte[1][labelList.size()];
+            interpreter.run(byteBuffer, result);
+            return getSortedResult(result);
+        }
     }
 
     @Override
@@ -90,7 +100,12 @@ public class TensorFlowImageClassifier implements Classifier {
 
     private ByteBuffer convertBitmapToByteBuffer(Bitmap bitmap) {
         bitmap = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, false);
-        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(BATCH_SIZE * inputSize * inputSize * PIXEL_SIZE);
+        ByteBuffer byteBuffer;
+        if(isInception) {
+            byteBuffer = ByteBuffer.allocateDirect(4 * BATCH_SIZE * inputSize * inputSize * PIXEL_SIZE);
+        } else {
+            byteBuffer = ByteBuffer.allocateDirect(BATCH_SIZE * inputSize * inputSize * PIXEL_SIZE);
+        }
         byteBuffer.order(ByteOrder.nativeOrder());
         int[] intValues = new int[inputSize * inputSize];
         bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
@@ -98,9 +113,15 @@ public class TensorFlowImageClassifier implements Classifier {
         for (int i = 0; i < inputSize; ++i) {
             for (int j = 0; j < inputSize; ++j) {
                 final int val = intValues[pixel++];
-                byteBuffer.put((byte) ((val >> 16) & 0xFF));
-                byteBuffer.put((byte) ((val >> 8) & 0xFF));
-                byteBuffer.put((byte) (val & 0xFF));
+                if(isInception) {
+                    byteBuffer.putFloat((((val >> 16) & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
+                    byteBuffer.putFloat((((val >> 8) & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
+                    byteBuffer.putFloat(((val & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
+                } else {
+                    byteBuffer.put((byte)((val >> 16) & 0xFF));
+                    byteBuffer.put((byte)((val >> 8) & 0xFF));
+                    byteBuffer.put((byte)(val & 0xFF));
+                }
             }
         }
         return byteBuffer;
@@ -108,7 +129,6 @@ public class TensorFlowImageClassifier implements Classifier {
 
     @SuppressLint("DefaultLocale")
     private List<Recognition> getSortedResult(byte[][] labelProbArray) {
-
         PriorityQueue<Recognition> pq =
                 new PriorityQueue<>(
                         MAX_RESULTS,
@@ -133,8 +153,35 @@ public class TensorFlowImageClassifier implements Classifier {
         for (int i = 0; i < recognitionsSize; ++i) {
             recognitions.add(pq.poll());
         }
-
         return recognitions;
     }
 
+    @SuppressLint("DefaultLocale")
+    private List<Recognition> getSortedResult(float[][] labelProbArray) {
+        PriorityQueue<Recognition> pq =
+                new PriorityQueue<>(
+                        MAX_RESULTS,
+                        new Comparator<Recognition>() {
+                            @Override
+                            public int compare(Recognition lhs, Recognition rhs) {
+                                return Float.compare(rhs.getConfidence(), lhs.getConfidence());
+                            }
+                        });
+
+        for (int i = 0; i < labelList.size(); ++i) {
+            float confidence = (labelProbArray[0][i] * 100) / 127.0f;
+            if (confidence > THRESHOLD) {
+                pq.add(new Recognition("" + i,
+                        labelList.size() > i ? labelList.get(i) : "unknown",
+                        confidence));
+            }
+        }
+
+        final ArrayList<Recognition> recognitions = new ArrayList<>();
+        int recognitionsSize = Math.min(pq.size(), MAX_RESULTS);
+        for (int i = 0; i < recognitionsSize; ++i) {
+            recognitions.add(pq.poll());
+        }
+        return recognitions;
+    }
 }

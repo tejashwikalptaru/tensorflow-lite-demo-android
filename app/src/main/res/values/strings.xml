@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Tensorflow Sample</string>
-    <string name="detected_obj_will_go_here">Detected Obj will go here...</string>
     <string name="capture_and_detect">Capture and Detect</string>
+    <string name="choose_classifier">Choose classifier</string>
+    <string name="details">Detected details will go here</string>
+    <string name="select_classifier">Select Classifier:</string>
 </resources>

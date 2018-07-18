@@ -36,8 +36,11 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -51,12 +54,13 @@ import java.util.concurrent.Executors;
 
 import tejashwi.com.tensorflowsample.interfaces.Classifier;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener{
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, AdapterView.OnItemSelectedListener{
 
     private TextureView mTextureView;
     private ImageView mPreview;
     private TextView mResult;
     private Button mCapture;
+    private Spinner mSpinner;
 
     private final int REQUEST_CAMERA = 1;
     private CameraDevice mCameraDevice;
@@ -68,20 +72,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private ImageReader imageReader;
     private Classifier mClassifier;
 
-    private Executor executor = Executors.newSingleThreadExecutor();
-
-    /* MobileNet Quant model
-    private static final String MODEL_PATH = "mobilenet_quant_v1_224.tflite";
-    private static final String LABEL_PATH = "labels.txt";
-    */
-
-    /* Inception v3 2016 slim model */
-    private static final String MODEL_PATH = "inceptionv3_slim_2016.tflite";
-    private static final String LABEL_PATH = "imagenet_slim_labels.txt";
-
-
-    private static final int INPUT_SIZE = 224;
-
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
     static {
         ORIENTATIONS.append(Surface.ROTATION_0, 90);
@@ -89,6 +79,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         ORIENTATIONS.append(Surface.ROTATION_180, 270);
         ORIENTATIONS.append(Surface.ROTATION_270, 180);
     }
+
+    private Executor executor = Executors.newSingleThreadExecutor();
+
+    /* MobileNet Quant model */
+    private static final String MODEL_PATH_MOBILENET = "mobilenet_quant_v1_224.tflite";
+    private static final String LABEL_PATH_MOBILENET = "labels.txt";
+
+    /* Inception v3 2016 slim model */
+    private static final String MODEL_PATH_INCEPTION = "inceptionv3_slim_2016.tflite";
+    private static final String LABEL_PATH_INCEPTION = "imagenet_slim_labels.txt";
+
+    private boolean classifierInit = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,12 +106,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onDestroy();
         closeCamera();
         stopBackgroundThread();
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                mClassifier.close();
-            }
-        });
+        closeTensorFlow();
     }
 
     private boolean checkPermission(String permission, int requestCode){
@@ -146,14 +143,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mCapture = findViewById(R.id.capture);
         mCapture.setOnClickListener(this);
 
+        mSpinner = findViewById(R.id.spinner);
+        mSpinner.setOnItemSelectedListener(this);
+        List<String> classifiers = new ArrayList<>();
+        classifiers.add("Mobilenet Quant v1.224");
+        classifiers.add("Inception v3 Slim 2016");
+        ArrayAdapter<String> dataadapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, classifiers);
+        dataadapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mSpinner.setAdapter(dataadapter);
+
         startBackgroundThread();
         if (mTextureView.isAvailable()) {
             openCamera();
         } else {
             mTextureView.setSurfaceTextureListener(textureListener);
         }
-
-        initTensorFlowAndLoadModel();
     }
 
     @Override
@@ -163,6 +167,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 takePicture();
                 break;
         }
+    }
+
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        switch (position){
+            case 0:
+                //use mobilenet quant
+                initTensorFlowAndLoadModel(false);
+                break;
+            case 1:
+                //use inceptionv3
+                initTensorFlowAndLoadModel(true);
+                break;
+        }
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+
     }
 
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
@@ -380,29 +403,47 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    private void initTensorFlowAndLoadModel(){
+    private void initTensorFlowAndLoadModel(final boolean isInception){
+        closeTensorFlow();
         executor.execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    mClassifier = TensorFlowImageClassifier.create(
-                            getAssets(),
-                            MODEL_PATH,
-                            LABEL_PATH,
-                            INPUT_SIZE);
-                    makeButtonVisible();
+                    if(isInception) {
+                        mClassifier = TensorFlowImageClassifier.create(getAssets(), MODEL_PATH_INCEPTION, LABEL_PATH_INCEPTION, true);
+                    } else {
+                        mClassifier = TensorFlowImageClassifier.create(getAssets(), MODEL_PATH_MOBILENET, LABEL_PATH_MOBILENET, false);
+                    }
+
+                    setButtonVisibility(View.VISIBLE);
+                    classifierInit = true;
+
                 } catch (final Exception e) {
+                    classifierInit = false;
+                    setButtonVisibility(View.GONE);
                     throw new RuntimeException("Error initializing TensorFlow!", e);
                 }
             }
         });
     }
 
-    private void makeButtonVisible(){
+    private void closeTensorFlow(){
+        if(classifierInit) {
+            setButtonVisibility(View.GONE);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    mClassifier.close();
+                }
+            });
+        }
+    }
+
+    private void setButtonVisibility(final int visible){
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mCapture.setVisibility(View.VISIBLE);
+                mCapture.setVisibility(visible);
             }
         });
     }
