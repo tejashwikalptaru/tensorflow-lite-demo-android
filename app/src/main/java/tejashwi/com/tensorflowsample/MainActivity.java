@@ -3,6 +3,7 @@ package tejashwi.com.tensorflowsample;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -15,25 +16,20 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
-import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.AdapterView;
@@ -46,13 +42,13 @@ import android.widget.Toast;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import tejashwi.com.tensorflowsample.interfaces.Classifier;
+import tejashwi.com.tensorflowsample.view.ClassifierActivity;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener, AdapterView.OnItemSelectedListener{
 
@@ -148,6 +144,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         List<String> classifiers = new ArrayList<>();
         classifiers.add("Mobilenet Quant v1.224");
         classifiers.add("Inception v3 Slim 2016");
+        classifiers.add("Yolo");
         ArrayAdapter<String> dataadapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, classifiers);
         dataadapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mSpinner.setAdapter(dataadapter);
@@ -179,6 +176,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case 1:
                 //use inceptionv3
                 initTensorFlowAndLoadModel(true);
+                break;
+            case 2:
+                //use Yolo
+                closeTensorFlow();
+                closeCamera();
+                Intent intent = new Intent(this, ClassifierActivity.class);
+                startActivity(intent);
                 break;
         }
     }

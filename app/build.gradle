@@ -17,7 +17,7 @@ android {
         }
     }
     aaptOptions {
-        noCompress "tflite"
+        noCompress "tflite", "txt", "pb"
     }
 }
 
@@ -31,4 +31,8 @@ dependencies {
 
     //tensorflow light
     implementation 'org.tensorflow:tensorflow-lite:+'
+    implementation 'org.tensorflow:tensorflow-android:1.6.0'
+
+    //Apache Maths
+    implementation 'org.apache.commons:commons-math3:3.2'
 }
